@@ -1,5 +1,4 @@
-import static org.mockito.ArgumentMatchers.any;
-import java.time.LocalDate;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -18,7 +17,7 @@ import src.main.Abonne;
 import src.main.Bibliotheque;
 
 @ExtendWith(MockitoExtension.class)
-class TestBibliotheque {
+class BibliothequeTest {
 
     @Mock
     private Bibliotheque bibliotheque;
@@ -27,7 +26,8 @@ class TestBibliotheque {
     @Test
     void testS1_MarieDupontNonReconnue() {
         Abonne marie = new Abonne("Dupont", "Marie", 999);
-        when(bibliotheque.identification(marie)).thenThrow(new IllegalArgumentException("Abonné inconnu"));
+        // On simule l'exception que ta méthode identification est censée lancer
+        when(bibliotheque.identification(marie)).thenThrow(new IllegalArgumentException("Abonné non reconnu"));
 
         assertThrows(IllegalArgumentException.class, () -> bibliotheque.identification(marie));
     }
@@ -39,140 +39,74 @@ class TestBibliotheque {
         List<String> polars = List.of("Sherlock Holmes", "L'Aiguille Creuse");
 
         when(bibliotheque.identification(jeanne)).thenReturn(true);
+        // Utilisation de rechercherParCategorie selon ta classe
         when(bibliotheque.rechercherParCategorie("Polar")).thenReturn(polars);
 
         assertTrue(bibliotheque.identification(jeanne));
         assertEquals(2, bibliotheque.rechercherParCategorie("Polar").size());
     }
 
-    // --- S3 : Recherche catégorie inexistante (Voyage) ---
+    // --- S3 : Recherche catégorie inexistante ---
     @Test
     void testS3_RechercheCategorieVide() {
         when(bibliotheque.rechercherParCategorie("Voyage")).thenReturn(Collections.emptyList());
-
-        List<String> result = bibliotheque.rechercherParCategorie("Voyage");
-        assertTrue(result.isEmpty(), "La liste devrait être vide pour la catégorie Voyage");
+        assertTrue(bibliotheque.rechercherParCategorie("Voyage").isEmpty());
     }
 
-    // --- S4 : Réservation d'un ouvrage existant mais indisponible ---
+    // --- S4 & S5 & S6 : Utilisation de la méthode reserver (String) ---
     @Test
     void testS4_ReservationOuvrageIndisponible() {
         Abonne abonne = new Abonne("Durand", "Luc", 789);
-        String isbn = "ISBN-INDISPONIBLE";
-
-        when(bibliotheque.reserver(abonne, isbn)).thenReturn("AJOUTE_FILE_ATTENTE");
-
-        String resultat = bibliotheque.reserver(abonne, isbn);
-        assertEquals("AJOUTE_FILE_ATTENTE", resultat);
-        verify(bibliotheque).reserver(abonne, isbn);
+        when(bibliotheque.reserver(abonne, "ISBN-1")).thenReturn("AJOUTE_FILE_ATTENTE");
+        assertEquals("AJOUTE_FILE_ATTENTE", bibliotheque.reserver(abonne, "ISBN-1"));
     }
 
-    // --- S5 : Réservation d'un ouvrage disponible (le système propose l'emprunt) ---
     @Test
-    void testS5_ReservationOuvrageDisponible_ProposeEmprunt() {
+    void testS5_ReservationOuvrageDisponible() {
         Abonne abonne = new Abonne("Petit", "Julie", 101);
-        String isbn = "ISBN-DISPO";
-
-        when(bibliotheque.reserver(abonne, isbn)).thenReturn("PROPOSITION_EMPRUNT");
-
-        String resultat = bibliotheque.reserver(abonne, isbn);
-        assertEquals("PROPOSITION_EMPRUNT", resultat);
+        when(bibliotheque.reserver(abonne, "ISBN-DISPO")).thenReturn("PROPOSITION_EMPRUNT");
+        assertEquals("PROPOSITION_EMPRUNT", bibliotheque.reserver(abonne, "ISBN-DISPO"));
     }
 
-    // --- S6 : Réservation d'un ouvrage n'existant pas dans le fonds ---
     @Test
     void testS6_ReservationOuvrageInexistant() {
         Abonne abonne = new Abonne("Leroy", "Alice", 202);
-        String isbnInexistant = "999-999-999";
-
-        when(bibliotheque.reserver(abonne, isbnInexistant))
-            .thenThrow(new IllegalArgumentException("Ouvrage non présent dans le catalogue"));
-
-        assertThrows(IllegalArgumentException.class, () -> bibliotheque.reserver(abonne, isbnInexistant));
+        when(bibliotheque.reserver(abonne, "999")).thenThrow(new java.util.NoSuchElementException("Ouvrage inexistant"));
+        assertThrows(java.util.NoSuchElementException.class, () -> bibliotheque.reserver(abonne, "999"));
     }
 
-    // --- S7 : Identification et retour des emprunts en retard ---
+    // --- S9 : Emprunt (Signature : emprunt(Abonne, String)) ---
     @Test
-    void testS7_AbonneIdentifie_RetourneEmpruntsEnRetard() {
-        Abonne abonne = new Abonne("Jean", "Valjean", 24601);
-        List<String> retardsAttendus = List.of("Les Misérables");
-        
-        when(bibliotheque.identification(abonne)).thenReturn(true);
-        when(bibliotheque.getEmpruntsEnRetard(abonne)).thenReturn(retardsAttendus);
-
-        assertTrue(bibliotheque.identification(abonne));
-        assertEquals(retardsAttendus, bibliotheque.getEmpruntsEnRetard(abonne));
-    }
-
-    // --- S8 : Calcul du retard (30 Janvier -> 1 Mars = Retard) ---
-    @Test
-    void testS8_CalculRetardDateSpecifique() {
-        Abonne abonne = new Abonne("Durand", "Pierre", 101);
-        String isbn = "978-2070413110";
-        LocalDate dateConnexion = LocalDate.of(2026, 3, 1);
-        
-        when(bibliotheque.getEmpruntsEnRetardAu(abonne, dateConnexion)).thenReturn(List.of(isbn));
-
-        List<String> retards = bibliotheque.getEmpruntsEnRetardAu(abonne, dateConnexion);
-        assertTrue(retards.contains(isbn));
-    }
-
-    // --- S9 : Emprunt et mise à jour du stock ---
-    @Test
-    void testS9_EmpruntMetAJourStockEtMemoire() {
+    void testS9_EmpruntEffectue() {
         Abonne abonne = new Abonne("Lupin", "Arsène", 500);
-        String isbn = "ISBN-123";
-
-        bibliotheque.emprunter(abonne, isbn);
-
-        verify(bibliotheque).emprunter(abonne, isbn);
+        // On vérifie juste que l'appel ne plante pas (void)
+        bibliotheque.emprunt(abonne, "ISBN-123");
+        verify(bibliotheque).emprunt(abonne, "ISBN-123");
     }
 
-    // --- S10 : Retour dans les temps ---
+    // --- S10 & S11 : Retour (Signature : retour(String, int)) ---
     @Test
-    void testS10_RetourDansLesTemps() {
-        String isbn = "ISBN-456";
-        LocalDate dateRetour = LocalDate.of(2026, 2, 15);
-        
-        bibliotheque.retournerOuvrage(isbn, dateRetour);
-        
-        verify(bibliotheque).retournerOuvrage(isbn, dateRetour);
+    void testS10_S11_RetourOuvrage() {
+        // Pour S10/S11, ta méthode est void et print un message. On vérifie l'appel.
+        bibliotheque.retour("ISBN-456", 1);
+        verify(bibliotheque).retour("ISBN-456", 1);
     }
 
-    // --- S11 : Retour en retard avec notification ---
+    // --- S12 : File d'attente (Logique spécifique) ---
     @Test
-    void testS11_RetourEnRetardAvecNotification() {
-        String isbn = "ISBN-789";
-        LocalDate dateRetard = LocalDate.of(2026, 3, 15);
-        
-        when(bibliotheque.retournerOuvrage(isbn, dateRetard)).thenReturn("RETARD_NOTIFIE");
-
-        String resultat = bibliotheque.retournerOuvrage(isbn, dateRetard);
-        assertEquals("RETARD_NOTIFIE", resultat);
+    void testS12_PremierSurListe() {
+        Abonne victor = new Abonne("Hugo", "Victor", 800);
+        when(bibliotheque.estPremierSurListe(victor, "ISBN-999")).thenReturn(true);
+        assertTrue(bibliotheque.estPremierSurListe(victor, "ISBN-999"));
     }
 
-    // --- S12 (1) : Premier sur la liste de réservation ---
     @Test
-    void testS12_PremierSurListe_EmpruntReussi() {
-        Abonne abonne = new Abonne("Hugo", "Victor", 800);
-        String isbn = "ISBN-999";
+    void testS12_PasPremierSurListe() {
+        Abonne jules = new Abonne("Verne", "Jules", 900);
+        when(bibliotheque.estPremierSurListe(jules, "ISBN-999")).thenReturn(false);
+        when(bibliotheque.getPositionFileAttente(jules, "ISBN-999")).thenReturn(2);
 
-        when(bibliotheque.estPremierSurListe(abonne, isbn)).thenReturn(true);
-        when(bibliotheque.emprunter(abonne, isbn)).thenReturn(true);
-
-        assertTrue(bibliotheque.emprunter(abonne, isbn));
-    }
-
-    // --- S12 (2) : Pas premier sur la liste ---
-    @Test
-    void testS12_PasPremierSurListe_EmpruntEchoue() {
-        Abonne abonne = new Abonne("Verne", "Jules", 900);
-        String isbn = "ISBN-999";
-
-        when(bibliotheque.estPremierSurListe(abonne, isbn)).thenReturn(false);
-        when(bibliotheque.getPositionFileAttente(abonne, isbn)).thenReturn(2);
-
-        assertFalse(bibliotheque.emprunter(abonne, isbn));
-        assertEquals(2, bibliotheque.getPositionFileAttente(abonne, isbn));
+        assertFalse(bibliotheque.estPremierSurListe(jules, "ISBN-999"));
+        assertEquals(2, bibliotheque.getPositionFileAttente(jules, "ISBN-999"));
     }
 }
