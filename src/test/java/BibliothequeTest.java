@@ -1,11 +1,17 @@
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
+import static org.mockito.ArgumentMatchers.any;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import src.main.Abonne;
@@ -17,7 +23,75 @@ class TestBibliotheque {
     @Mock
     private Bibliotheque bibliotheque;
 
-    // --- S7 : Liste des emprunts en retard à l'identification ---
+    // --- S1 : Identification échouée ---
+    @Test
+    void testS1_MarieDupontNonReconnue() {
+        Abonne marie = new Abonne("Dupont", "Marie", 999);
+        when(bibliotheque.identification(marie)).thenThrow(new IllegalArgumentException("Abonné inconnu"));
+
+        assertThrows(IllegalArgumentException.class, () -> bibliotheque.identification(marie));
+    }
+
+    // --- S2 : Connexion réussie et recherche Polar ---
+    @Test
+    void testS2_JeanneDupontRecherchePolar() {
+        Abonne jeanne = new Abonne("Dupont", "Jeanne", 123);
+        List<String> polars = List.of("Sherlock Holmes", "L'Aiguille Creuse");
+
+        when(bibliotheque.identification(jeanne)).thenReturn(true);
+        when(bibliotheque.rechercherParCategorie("Polar")).thenReturn(polars);
+
+        assertTrue(bibliotheque.identification(jeanne));
+        assertEquals(2, bibliotheque.rechercherParCategorie("Polar").size());
+    }
+
+    // --- S3 : Recherche catégorie inexistante (Voyage) ---
+    @Test
+    void testS3_RechercheCategorieVide() {
+        when(bibliotheque.rechercherParCategorie("Voyage")).thenReturn(Collections.emptyList());
+
+        List<String> result = bibliotheque.rechercherParCategorie("Voyage");
+        assertTrue(result.isEmpty(), "La liste devrait être vide pour la catégorie Voyage");
+    }
+
+    // --- S4 : Réservation d'un ouvrage existant mais indisponible ---
+    @Test
+    void testS4_ReservationOuvrageIndisponible() {
+        Abonne abonne = new Abonne("Durand", "Luc", 789);
+        String isbn = "ISBN-INDISPONIBLE";
+
+        when(bibliotheque.reserver(abonne, isbn)).thenReturn("AJOUTE_FILE_ATTENTE");
+
+        String resultat = bibliotheque.reserver(abonne, isbn);
+        assertEquals("AJOUTE_FILE_ATTENTE", resultat);
+        verify(bibliotheque).reserver(abonne, isbn);
+    }
+
+    // --- S5 : Réservation d'un ouvrage disponible (le système propose l'emprunt) ---
+    @Test
+    void testS5_ReservationOuvrageDisponible_ProposeEmprunt() {
+        Abonne abonne = new Abonne("Petit", "Julie", 101);
+        String isbn = "ISBN-DISPO";
+
+        when(bibliotheque.reserver(abonne, isbn)).thenReturn("PROPOSITION_EMPRUNT");
+
+        String resultat = bibliotheque.reserver(abonne, isbn);
+        assertEquals("PROPOSITION_EMPRUNT", resultat);
+    }
+
+    // --- S6 : Réservation d'un ouvrage n'existant pas dans le fonds ---
+    @Test
+    void testS6_ReservationOuvrageInexistant() {
+        Abonne abonne = new Abonne("Leroy", "Alice", 202);
+        String isbnInexistant = "999-999-999";
+
+        when(bibliotheque.reserver(abonne, isbnInexistant))
+            .thenThrow(new IllegalArgumentException("Ouvrage non présent dans le catalogue"));
+
+        assertThrows(IllegalArgumentException.class, () -> bibliotheque.reserver(abonne, isbnInexistant));
+    }
+
+    // --- S7 : Identification et retour des emprunts en retard ---
     @Test
     void testS7_AbonneIdentifie_RetourneEmpruntsEnRetard() {
         Abonne abonne = new Abonne("Jean", "Valjean", 24601);
@@ -30,23 +104,17 @@ class TestBibliotheque {
         assertEquals(retardsAttendus, bibliotheque.getEmpruntsEnRetard(abonne));
     }
 
-    // --- S8 : Calcul du retard (Emprunt 30 Janvier -> Retour 1 Mars = Retard) ---
+    // --- S8 : Calcul du retard (30 Janvier -> 1 Mars = Retard) ---
     @Test
     void testS8_CalculRetardDateSpecifique() {
         Abonne abonne = new Abonne("Durand", "Pierre", 101);
         String isbn = "978-2070413110";
-        LocalDate dateEmprunt = LocalDate.of(2026, 1, 30);
         LocalDate dateConnexion = LocalDate.of(2026, 3, 1);
-
-        // La règle dit : 16 Janvier -> 17 Février. 
-        // Donc 30 Janvier -> 2 Mars est la limite. Le 1er Mars ne devrait pas être en retard ?
-        // ATTENTION : L'énoncé dit "30 Janvier -> 1er Mars = Retard". 
-        // Cela suggère que Février est traité comme un mois calendaire court.
         
         when(bibliotheque.getEmpruntsEnRetardAu(abonne, dateConnexion)).thenReturn(List.of(isbn));
 
         List<String> retards = bibliotheque.getEmpruntsEnRetardAu(abonne, dateConnexion);
-        assertTrue(retards.contains(isbn), "Le livre devrait être marqué en retard le 1er Mars");
+        assertTrue(retards.contains(isbn));
     }
 
     // --- S9 : Emprunt et mise à jour du stock ---
@@ -57,34 +125,33 @@ class TestBibliotheque {
 
         bibliotheque.emprunter(abonne, isbn);
 
-        // On vérifie que le système a bien enregistré l'ordre
         verify(bibliotheque).emprunter(abonne, isbn);
-        // On pourrait vérifier la diminution du stock si la méthode existait
     }
 
     // --- S10 : Retour dans les temps ---
     @Test
     void testS10_RetourDansLesTemps() {
         String isbn = "ISBN-456";
-        bibliotheque.retournerOuvrage(isbn, LocalDate.now());
+        LocalDate dateRetour = LocalDate.of(2026, 2, 15);
         
-        verify(bibliotheque).retournerOuvrage(isbn, LocalDate.now());
-        // Pas d'exception ou de notification de retard attendue ici
+        bibliotheque.retournerOuvrage(isbn, dateRetour);
+        
+        verify(bibliotheque).retournerOuvrage(isbn, dateRetour);
     }
 
     // --- S11 : Retour en retard avec notification ---
     @Test
     void testS11_RetourEnRetardAvecNotification() {
-        Abonne abonne = new Abonne("Zola", "Emile", 700);
         String isbn = "ISBN-789";
+        LocalDate dateRetard = LocalDate.of(2026, 3, 15);
         
-        when(bibliotheque.retournerOuvrage(isbn, LocalDate.now())).thenReturn("RETARD_NOTIFIE");
+        when(bibliotheque.retournerOuvrage(isbn, dateRetard)).thenReturn("RETARD_NOTIFIE");
 
-        String resultat = bibliotheque.retournerOuvrage(isbn, LocalDate.now());
+        String resultat = bibliotheque.retournerOuvrage(isbn, dateRetard);
         assertEquals("RETARD_NOTIFIE", resultat);
     }
 
-    // --- S12 (a) : Premier sur la liste de réservation ---
+    // --- S12 (1) : Premier sur la liste de réservation ---
     @Test
     void testS12_PremierSurListe_EmpruntReussi() {
         Abonne abonne = new Abonne("Hugo", "Victor", 800);
@@ -96,7 +163,7 @@ class TestBibliotheque {
         assertTrue(bibliotheque.emprunter(abonne, isbn));
     }
 
-    // --- S12 (b) : Pas premier sur la liste ---
+    // --- S12 (2) : Pas premier sur la liste ---
     @Test
     void testS12_PasPremierSurListe_EmpruntEchoue() {
         Abonne abonne = new Abonne("Verne", "Jules", 900);

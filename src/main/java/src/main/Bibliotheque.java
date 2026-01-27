@@ -32,7 +32,11 @@ public class Bibliotheque {
     public int getPositionFileAttente(Abonne a, String isbn) {
         throw new UnsupportedOperationException("S12: Méthode getPositionFileAttente non implémentée");
     }
-    
+
+    public String reserver(Abonne abonne, String isbn) {
+        throw new UnsupportedOperationException("S4-S5-S6: Méthode reserver non implémentée");
+    }
+
     public List<String> rechercherParCategorie(String categorie) {
         throw new UnsupportedOperationException("S2-S3: Méthode rechercherParCategorie non implémentée");
     }
