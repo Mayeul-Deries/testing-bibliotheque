@@ -1,35 +1,8 @@
-# Gradle
-.gradle/
-build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# IntelliJ IDEA
+node_modules/
+.env
+dist/
+target/
 .idea/
-*.iml
-*.iws
-*.ipr
-out/
-
-# Eclipse
-.classpath
-.project
-.settings/
-bin/
-
-# VS Code
 .vscode/
-
-# MacOS
-.DS_Store
-
-# Log files
-*.log
-
-# Package files
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
+*.class
+/session_log/
