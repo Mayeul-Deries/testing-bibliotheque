@@ -13,4 +13,16 @@ public class Abonne {
         this.numeroAbonne = numeroAbonne;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Abonne abonne = (Abonne) o;
+        return numeroAbonne == abonne.numeroAbonne;
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(numeroAbonne);
+    }
 }
